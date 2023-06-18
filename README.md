@@ -73,6 +73,7 @@ There are two cli options (currently):
 
 - login
 - search
+- logout
 
 ### Login
 
@@ -103,6 +104,10 @@ There are also a couple of optional parameters:
 - limit - This will limit the number of results returned (default is 30, max is 10000)
 - print_results - This will print the results to the screen (default is False)
 
+### Logout
+
+You can stop the restore session by using the "logout" command.
+
 ## Examples
 
 ### Login
@@ -118,4 +123,10 @@ python search.py search --query "subject: Test" --limit 100 --print_results
 ```
 
 Each time it runs the results will be saved to a json file called "results-timestamp.json".
+
+### Logout
+
+```
+python search.py logout
+```
 

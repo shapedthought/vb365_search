@@ -197,11 +197,33 @@ def search(term: str, print_results: bool = False, limit: int = 30):
 
     print(f"Search results saved to {save_str}")
 
+def logout():
+    #https://localhost:4443/v7/RestoreSessions/{restoreSessionId}/Stop
+    with open("restore_headers.json", mode="rb") as fp:
+        restore_headers = json.load(fp)
+
+    with open("restore.json", mode="r") as fp:
+        restore_json = json.load(fp)
+
+    restore_id = restore_json['id']
+
+    config = get_config()
+    vb_address = config['vb365']['api_address']
+
+    logout_url = f"https://{vb_address}:4443/v7/RestoreSessions/{restore_id}/Stop"
+
+    logout_res = requests.post(logout_url, headers=restore_headers, verify=False)
+
+    print(logout_res)
+
+    print("Log out succesful!")
+
 def main():
     fire.Fire({
         'login': login,
         'hello': hello,
-        'search': search
+        'search': search,
+        'logout': logout
   })
 
 if __name__ == "__main__":
