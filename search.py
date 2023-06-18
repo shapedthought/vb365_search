@@ -146,10 +146,6 @@ def login():
     print(f"Restore Session created! ID: {restore_id}")
 
 
-def hello(name):
-  return 'Hello {name}!'.format(name=name)
-
-
 def search(term: str, print_results: bool = False, limit: int = 30):
     with open("restore_headers.json", mode="rb") as fp:
         restore_headers = json.load(fp)
@@ -221,7 +217,6 @@ def logout():
 def main():
     fire.Fire({
         'login': login,
-        'hello': hello,
         'search': search,
         'logout': logout
   })
