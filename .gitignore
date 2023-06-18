@@ -1,0 +1,4 @@
+*.json
+*.ipynb
+*.toml
+.ipynb_checkpoints
