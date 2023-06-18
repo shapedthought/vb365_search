@@ -49,12 +49,15 @@ def login():
     device_code = device_response_json['device_code']
 
     pc.copy(user_code)
-    print(f"User code {user_code} copied to clipboard. Please paste into webroswer which will open when you continue.")
+    print(f"User code {user_code} copied to clipboard. Please paste into webroswer which will open when you continue ({ms_login}).")
     input("Press Enter to continue...")
     webbrowser.open(device_response_json['verification_uri'])
 
     # pause until user has logged in
     input("Once you have logged in, please press enter to continue...")
+
+    spinner = Halo(text='Completing login...', spinner='arc')
+    spinner.start()
 
     ms_token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
     token_body = {
@@ -117,7 +120,8 @@ def login():
     save_json(restore_headers, "restore_headers.json")
     save_json(standard_headers, "standard_headers.json")
 
-    print("Logins successful! Creating Restore Session...")
+    spinner.succeed("Login complete!\n")
+    print("Creating Restore Session...")
 
     restore_url = "https://192.168.0.219:4443/v7/Organization/Explore"
 
