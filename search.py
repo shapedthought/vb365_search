@@ -2,228 +2,301 @@ import requests
 import urllib3
 import webbrowser
 import tomllib
+import toml
 import pprint
 import json
 import fire
 import time
 import pyperclip as pc
 from halo import Halo
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
+import contextlib
+import logging
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def save_json(data, filename):
-    with open(filename, 'w') as f:
-        json.dump(data, f, indent=4)
+from models import (
+    DeviceRequest,
+    DeviceResponse,
+    Assertion,
+    AssertionResponse,
+    VBLoginRequest,
+    Configuration,
+    VBLoginResponse,
+    AuthHeaders,
+    RestoreSessionRequest,
+    RestoreSessionResponse,
+    SearchRequest,
+    MicrosoftConfig,
+    Vb365Config,
+)
 
-def get_config():
-    with open("configuration.toml", mode="rb") as fp:
-        config = tomllib.load(fp)
-    return config
+from search_model import SearchResponse
+
+# Setup at the top of your file
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+
+def save_json(data, filename) -> None:
+    output_path = Path(filename)
+    with open(output_path, "w") as f:
+        json.dump(data, f, indent=4)
+    return output_path
+
+
+def get_config() -> Configuration:
+    try:
+        with open("configuration.toml", mode="rb") as fp:
+            config = Configuration(**tomllib.load(fp))
+        return config
+    except (FileNotFoundError, tomllib.TOMLDecodeError) as e:
+        print(f"Configuration error: {e}")
+        raise
+
+
+@contextlib.contextmanager
+def vb365_session():
+    with open("auth_headers.json", mode="r") as fp:
+        auth_headers = AuthHeaders(**json.load(fp))
+    session = requests.Session()
+    session.headers.update(auth_headers.model_dump())
+    session.verify = False
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+def create_config_template():
+    """
+    Create a configuration template file
+    """
+    config = Configuration(
+        microsoft=MicrosoftConfig(),
+        vb365=Vb365Config(),
+    )
+
+    with open("configuration.toml", mode="w") as fp:
+        toml.dump(config.model_dump(), fp)
+
 
 def login():
-
+    """
+    Login to Veeam Backup for Microsoft Office 365
+    """
     config = get_config()
 
-    print(config['microsoft']['application_id'])
+    print(config.microsoft.application_id)
+    logger.info("Logging in...")
 
-    # client_id = config['microsoft']['client_id']
-    application_id = config['microsoft']['application_id']
-    tenant_id = config['microsoft']['tenant_id']
-    user_id = config['microsoft']['user_id']
-    user_tenant = f"{user_id}.{tenant_id}"
+    application_id = config.microsoft.application_id
+    tenant_id = config.microsoft.tenant_id
+    tenant = config.microsoft.tenant_name
+    version = config.vb365.version
 
-    vb_address = config['vb365']['api_address']
-    vb_base_url = veeam_login_url = f"https://{vb_address}:4443/v7/"
+    vb_address = config.vb365.api_address
+    vb_base_url = f"https://{vb_address}:4443/{version}/"
 
     ms_login = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/devicecode"
 
-    device_body = {
-        "client_id": application_id,
-        'scope': [f'api://{application_id}/access_as_user openid profile offline_access']
-    }
+    device_body = DeviceRequest(
+        client_id=application_id,
+        scope="scope=Directory.AccessAsUser.All User.ReadWrite.All offline_access",
+    )
 
-    device_response = requests.post(ms_login, data=device_body, verify=False)
-    device_response.raise_for_status()
-    device_response_json = device_response.json()
-    user_code = device_response_json['user_code']
-    device_code = device_response_json['device_code']
+    try:
+        device_response = requests.post(
+            ms_login, data=device_body.model_dump(), verify=False
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"Login failed: {e}")
+        raise
+
+    device_response_model = DeviceResponse(**device_response.json())
+
+    user_code = device_response_model.user_code
+    device_code = device_response_model.device_code
 
     pc.copy(user_code)
-    print(f"User code {user_code} copied to clipboard. Please paste into webroswer which will open when you continue ({ms_login}).")
+    print(
+        f"User code {user_code} copied to clipboard. Please paste into web browser which will open when you continue ({ms_login})."
+    )
+    logger.info(f"User code {user_code} copied to clipboard.")
     input("Press Enter to continue...")
-    webbrowser.open(device_response_json['verification_uri'])
+    webbrowser.open(device_response_model.verification_uri)
 
     # pause until user has logged in
     input("Once you have logged in, please press enter to continue...")
 
-    spinner = Halo(text='Completing login...', spinner='arc')
+    spinner = Halo(text="Completing login...", spinner="arc")
     spinner.start()
 
     ms_token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
-    token_body = {
-        'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',
-        'client_id': application_id,
-        'device_code': device_code
-    }
 
-    api_res = requests.post(ms_token_url, data=token_body, verify=False)
-    api_res.raise_for_status()
+    token_body = Assertion(
+        grant_type="'urn:ietf:params:oauth:grant-type:device_code'",
+        client_id=application_id,
+        device_code=device_code,
+    )
 
-    api_res_json = api_res.json()
-    access_token = api_res_json['access_token']
+    try:
+        api_res = requests.post(
+            ms_token_url, data=token_body.model_dump(), verify=False
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"Login failed: {e}")
+        raise
+
+    api_res_json = AssertionResponse(**api_res.json())
 
     veeam_login_url = f"{vb_base_url}token"
-    veeam_login_body = {
-        'grant_type': 'operator',
-        'client_id': user_tenant,
-        'assertion': access_token
-    }
+
+    veeam_login_body = VBLoginRequest(
+        grant_type=f"urn:ietf: params:oauth: grant - type:jwt - bearer & client_id ={tenant}",
+        assertion=api_res_json.model_dump(),
+    )
 
     # Pause
     time.sleep(3)
 
-    vb365_res = requests.post(veeam_login_url, data=veeam_login_body, verify=False)
-    vb365_res.raise_for_status()
+    try:
+        vb365_res = requests.post(
+            veeam_login_url, data=veeam_login_body.model_dump(), verify=False
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"Login failed: {e}")
+        raise
 
-    vb365_res_json = vb365_res.json()
+    vb365_res_json = VBLoginResponse(**vb365_res.json())
 
-    restore_headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + vb365_res_json["access_token"]
-        }
-
-    # Standard login
-    username = config['vb365']['username']
-    password = config['vb365']['password']
-
-    standard_body = {
-        "grant_type": "password",
-        "username": username,
-        "password": password
-        }
+    auth_headers = AuthHeaders(authorization=f"Bearer {vb365_res_json.access_token}")
 
     # Pause
     time.sleep(3)
-    
-    standard_res = requests.post(veeam_login_url, data=standard_body, verify=False)
-    standard_res.raise_for_status()
-    standard_json = standard_res.json()
 
-    standard_accee_token = standard_json["access_token"]
-    standard_headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + standard_accee_token
-    }
-
-    save_json(restore_headers, "restore_headers.json")
-    save_json(standard_headers, "standard_headers.json")
+    save_json(auth_headers.model_dump(), "auth_headers.json")
 
     spinner.succeed("Login complete!\n")
-    print("Creating Restore Session...")
+    logger.info("Login complete! Creating Restore Session...")
 
-    restore_url = "https://192.168.0.219:4443/v7/Organization/Explore"
+    restore_url = f"{vb_base_url}Organization/Explore"
 
-    
-    dt = datetime.utcnow()
-    dt_str = dt.strftime('%Y-%m-%dT%H:%M:%SZ')
-
-    body = {
-        "dateTime": dt_str,
-        "showAllVersions": True,
-        "showDeleted": True,
-        "type": "Vex"
-    }
+    body = RestoreSessionRequest()
 
     # Pause
     time.sleep(3)
 
-    restore_res = requests.post(restore_url, headers=restore_headers, json=body, verify=False)
+    try:
+        restore_res = requests.post(
+            restore_url,
+            headers=auth_headers.model_dump(),
+            json=body.model_dump(),
+            verify=False,
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"Restore Session creation failed: {e}")
+        raise
 
-    restore_json = restore_res.json()
+    restore_model = RestoreSessionResponse(**restore_res.json())
 
-    restore_id = restore_json['id']
+    restore_id = restore_model.id
 
-    save_json(restore_json, "restore.json")
+    save_json(restore_model.model_dump(), "restore.json")
 
-    print(f"Restore Session created! ID: {restore_id}")
+    logger.info(f"Restore Session created! ID: {restore_id}")
 
 
 def search(term: str, print_results: bool = False, limit: int = 30):
-    with open("restore_headers.json", mode="rb") as fp:
-        restore_headers = json.load(fp)
+    with open("auth_headers.json", mode="rb") as fp:
+        auth_headers = AuthHeaders(**json.load(fp))
 
     with open("restore.json", mode="r") as fp:
-        restore_json = json.load(fp)
-
-    restore_id = restore_json['id']
+        restore_model = RestoreSessionResponse(**json.load(fp))
 
     config = get_config()
-    vb_address = config['vb365']['api_address']
 
-    ex_search_url = f"https://{vb_address}:4443/v7/RestoreSessions/{restore_id}/organization/mailboxes/search?limit={limit}"
+    ex_search_url = f"https://{config.vb365.api_address}:4443/{config.vb365.version}/RestoreSessions/{restore_model.id}/organization/mailboxes/search?limit={limit}"
 
-    search_body = {
-        "query": term
-    }
+    search_body = SearchRequest(term=term)
 
-    print("Search term: " + term)
-    spinner = Halo(text='Searching...', spinner='dots')
+    logger.info(f"Searching for {term}...")
+    spinner = Halo(text="Searching...", spinner="dots")
     spinner.start()
-    search_res = requests.post(ex_search_url, json=search_body, headers=restore_headers, verify=False)
+
+    try:
+        search_res = requests.post(
+            ex_search_url,
+            json=search_body.model_dump(),
+            headers=auth_headers.model_dump(),
+            verify=False,
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"Search failed: {e}")
+        raise
+
     spinner.stop()
-    
-    search_res.raise_for_status()
 
-    search_json = search_res.json()
+    search_model = SearchResponse(**search_res.json())
 
-    # dict_keys(['subject', 'itemClass', '_links', '_actions', 'id', 'from', 'cc', 'bcc', 'to', 'sent', 'received', 'reminder', 'importance'])
     if print_results:
-        for i in search_json['results']:
-            print(f"Subject: {i['subject']}")
-            print(f"Received: {i['received']}")
-            print(f"From: {i['from']}")
-            print(f"Sent: {i['to']}")
+        for i in search_model.results:
+            print(f"Subject: {i.subject}")
+            print(f"Received: {i.received}")
+            print(f"From: {i.from_}")
+            print(f"Sent: {i.to}")
             print("")
 
-    print(f"Search complete! {len(search_json['results'])} items found.")
+    logger.info(f"Search complete! {len(search_model.results)} items found.")
 
-    dt = datetime.utcnow()
-    dt_str = dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    dt = datetime.now(timezone.utc)
+    dt_str = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     save_str = f"search-{dt_str}.json"
 
-    save_json(search_json, save_str)
+    # After saving results
+    output_path = save_json(search_model.model_dump(), save_str)
+    logger.info(f"Search results saved to {output_path}")
 
-    print(f"Search results saved to {save_str}")
+    return search_model  # Return the model for potential further use
+
 
 def logout():
-    #https://localhost:4443/v7/RestoreSessions/{restoreSessionId}/Stop
-    with open("restore_headers.json", mode="rb") as fp:
-        restore_headers = json.load(fp)
+    try:
+        with open("auth_headers.json", mode="r") as fp:
+            auth_headers = AuthHeaders(**json.load(fp))
 
-    with open("restore.json", mode="r") as fp:
-        restore_json = json.load(fp)
+        with open("restore.json", mode="r") as fp:
+            restore_model = RestoreSessionResponse(**json.load(fp))
 
-    restore_id = restore_json['id']
+        config = get_config()
 
-    config = get_config()
-    vb_address = config['vb365']['api_address']
+        logout_url = f"https://{config.vb365.api_address}:4443/{config.vb365.version}/RestoreSessions/{restore_model.id}/Stop"
 
-    logout_url = f"https://{vb_address}:4443/v7/RestoreSessions/{restore_id}/Stop"
+        session = requests.Session()
+        logout_res = session.post(
+            logout_url, headers=auth_headers.model_dump(), verify=False
+        )
+        logout_res.raise_for_status()
+        print("Log out successful!")
+    except requests.exceptions.RequestException as e:
+        print(f"Logout failed: {e}")
+    finally:
+        session.close()
 
-    logout_res = requests.post(logout_url, headers=restore_headers, verify=False)
-
-    print(logout_res)
-
-    print("Log out succesful!")
 
 def main():
-    fire.Fire({
-        'login': login,
-        'search': search,
-        'logout': logout
-  })
+    fire.Fire(
+        {
+            "login": login,
+            "search": search,
+            "template": create_config_template,
+            "logout": logout,
+        }
+    )
+
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,7 @@ This script is a proof of concept to show how you can use the Veeam Backup for O
 
 You can view the Veeam documentation on how this works:
 
-https://helpcenter.veeam.com/docs/vbo365/rest/search.html?ver=70
+https://helpcenter.veeam.com/docs/vbo365/rest/search.html
 
 ## Configuration file
 
@@ -14,7 +14,6 @@ A configuration.toml file is required:
 [microsoft]
 tenant_id = ""
 application_id = ""
-user_id = ""
 
 [vb365]
 api_address = "192.168.0.123"
@@ -40,7 +39,7 @@ The user_id is a bit more tricky, you can get it using the Veeam Guide:
 
 https://helpcenter.veeam.com/docs/vbo365/rest/authorization_restore_operator.html?ver=70#ids
 
-But I have found it easier to use the Grpah API Explorer: 
+But I have found it easier to use the Graph API Explorer: 
 
 https://developer.microsoft.com/en-us/graph/graph-explorer
 
@@ -62,9 +61,11 @@ You will need to install the following modules:
 - fire
 - pyperclip
 - halo
+- toml
+- pydantic
 
 ```
-pip install requests fire pyperclip halo
+pip install requests fire pyperclip halo toml pydantic
 ```
 
 ## Usage
@@ -74,6 +75,7 @@ There are two cli options (currently):
 - login
 - search
 - logout
+- template
 
 ### Login
 
@@ -81,11 +83,10 @@ This will take you through the whole process of logging in (see Veeam docs for f
 
 During the login it will prompt you to paste the user code into the web browser and then authenthicate with the same user account you used for the user_id in the config file.
 
-Once compleleted there will be three files created:
+Once completed there will be three files created:
 
 - restore_header.json - This is the header file used for the search
 - restore.json - This contains the details of the restore session
-- standard_headers.json - This is the standard headers used for all requests (except the search)
 
 The tool also logs you into the VB365 API the normal way and save it to the "standard_headers.json" file. It isn't used at the moment, but maybe in the future.
 
@@ -95,9 +96,9 @@ This will search the VB365 backups for emails based on the query string.
 
 The query string details can be found in the documentation, but they are fairly straight forward.
 
-See the bottom of: https://helpcenter.veeam.com/docs/vbo365/rest/search.html?ver=70
+See the bottom of: https://helpcenter.veeam.com/docs/vbo365/rest/search.html
 
-And: https://helpcenter.veeam.com/docs/vbo365/rest/appendix_search.html?ver=70
+And: https://helpcenter.veeam.com/docs/vbo365/rest/appendix_search.html
 
 There are also a couple of optional parameters:
 
@@ -123,6 +124,14 @@ python search.py search --query "subject: Test" --limit 100 --print_results
 ```
 
 Each time it runs the results will be saved to a json file called "results-timestamp.json".
+
+### Template
+
+This will create a template file that holds all the credentials.
+
+```
+python search.py template
+```
 
 ### Logout
 

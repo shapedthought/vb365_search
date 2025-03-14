@@ -2,3 +2,7 @@
 *.ipynb
 *.toml
 .ipynb_checkpoints
+.idea
+__pycache__
+.virt
+.ruff_cache
