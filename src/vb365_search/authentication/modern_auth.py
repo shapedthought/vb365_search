@@ -2,7 +2,7 @@ import requests
 import json
 import time
 
-from auth_models import DeviceCodeResponse, VeeamTokenResponse, AuthConfig
+from .auth_models import DeviceCodeResponse, VeeamTokenResponse, AuthConfig
 
 class AuthenticateModern:
     
@@ -11,7 +11,7 @@ class AuthenticateModern:
         self.device_code_url = f"https://login.microsoftonline.com/{self.config.tenant_name}/oauth2/v2.0/devicecode"
         self.token_url = f"https://login.microsoftonline.com/{self.config.tenant_name}/oauth2/v2.0/token"
 
-    def authenticate_veeam_backup_o365(self) -> VeeamTokenResponse:
+    def authenticate_veeam_backup_o365(self, verify: bool = False) -> VeeamTokenResponse:
         """
         Authenticate to Veeam Backup for Microsoft 365 using modern app-only authentication
         """
@@ -69,12 +69,10 @@ class AuthenticateModern:
             "assertion": json.dumps(token_json)
         }
         
-        veeam_response = requests.post(veeam_token_url, data=veeam_token_data, verify=False)
+        veeam_response = requests.post(veeam_token_url, data=veeam_token_data, verify=verify)
         veeam_response.raise_for_status()
         veeam_tokens = veeam_response.json()
         
         self.veeam_token_response = VeeamTokenResponse.model_validate(veeam_tokens)
         
         return self.veeam_token_response
-
-

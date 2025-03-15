@@ -1,7 +1,7 @@
 import requests
 
-from restore_models import RestoreSessionRequest, RestoreSessionResponse
-from ..authentication.auth_models import AuthConfig, AuthHeaders
+from vb365_search.restore_session.restore_models import RestoreSessionRequest, RestoreSessionResponse
+from vb365_search.authentication.auth_models import AuthConfig, AuthHeaders
 
 class RestoreSession:
     def __init__(self, config: AuthConfig, auth_headers: AuthHeaders):

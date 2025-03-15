@@ -9,7 +9,7 @@ from .authentication.auth_models import AuthConfig, AuthHeaders
 from .models.models import Configuration
 from .search import (
     BaseSearch,
-    ExchangeSearch,
+    ExchangeItemsInMailboxesSearch,
     SharePointSearch,
     OneDriveSearch,
 )

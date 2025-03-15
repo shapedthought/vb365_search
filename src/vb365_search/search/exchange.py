@@ -10,7 +10,7 @@ from vb365_search.authentication.auth_models import AuthHeaders
 from vb365_search.models.models import Configuration
 
 from .base import BaseSearch
-from .models import ExchangeItemsInMailboxes, ExchangeItemmsInMailboxesResponse
+from .models import ExchangeItemsInMailboxes, ExchangeItemsInMailboxesResponse
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class ExchangeItemsInMailboxesSearch(BaseSearch):
         if not self.api_address:
             raise ValueError("API address not found in configuration")
     
-    def search(self, term: str, limit: int = 30, **kwargs) -> ExchangeItemmsInMailboxesResponse:
+    def search(self, term: str, limit: int = 30, **kwargs) -> ExchangeItemsInMailboxesResponse:
         """
         Search Exchange mailboxes
         
@@ -74,8 +74,38 @@ class ExchangeItemsInMailboxesSearch(BaseSearch):
             raise
         
         self.results = response.json()
-        search_response = ExchangeItemmsInMailboxesResponse(**self.results)
+        search_response = ExchangeItemsInMailboxesResponse(**self.results)
         
         logger.info(f"Search complete! {len(search_response.results)} items found.")
         
         return search_response
+        
+    def get_results(self) -> List[Dict[str, Any]]:
+        """
+        Get the results of the search in a standardized format
+        
+        Returns:
+            List of result dictionaries with standardized keys
+        """
+        if not self.results:
+            return []
+        
+        search_response = ExchangeItemsInMailboxesResponse(**self.results)
+        
+        # Convert to a standardized format
+        standardized_results = []
+        for result in search_response.results:
+            standardized_results.append({
+                "subject": result.subject,
+                "received": result.received,
+                "from": result.from_,
+                "to": result.to,
+                "cc": result.cc,
+                "bcc": result.bcc,
+                "importance": result.importance,
+                "has_attachments": len(result.attachments) > 0,
+                "attachments": [a.name for a in result.attachments],
+                "id": result.id,
+            })
+        
+        return standardized_results

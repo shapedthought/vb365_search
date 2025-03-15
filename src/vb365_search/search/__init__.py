@@ -3,13 +3,13 @@ Search module for vb365_search
 """
 
 from .base import BaseSearch
-from .exchange import ExchangeSearch
+from .exchange import ExchangeItemsInMailboxesSearch
 from .sharepoint import SharePointSearch
 from .onedrive import OneDriveSearch
 from .models import (
     SearchRequest,
-    ExchangeSearchRequest,
-    ExchangeSearchResponse,
+    ExchangeItemsInMailboxes,
+    ExchangeItemsInMailboxesResponse,
     SharePointSearchRequest,
     SharePointSearchResponse,
     OneDriveSearchRequest,
@@ -18,12 +18,12 @@ from .models import (
 
 __all__ = [
     "BaseSearch",
-    "ExchangeSearch",
+    "ExchangeItemsInMailboxesSearch",
     "SharePointSearch",
     "OneDriveSearch",
     "SearchRequest",
-    "ExchangeSearchRequest",
-    "ExchangeSearchResponse",
+    "ExchangeItemsInMailboxes",
+    "ExchangeItemsInMailboxesResponse",
     "SharePointSearchRequest",
     "SharePointSearchResponse",
     "OneDriveSearchRequest",

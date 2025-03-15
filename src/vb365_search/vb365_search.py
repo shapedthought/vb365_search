@@ -91,7 +91,7 @@ def login():
     auth_modern = AuthenticateModern(auth_config)
     
     try:
-        veeam_token_model = auth_modern.authenticate_veeam_backup_o365()
+        veeam_token_model = auth_modern.authenticate_veeam_backup_o365(verify=False)
     except Exception as e:
         print(f"Login failed: {e}")
         raise

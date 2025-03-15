@@ -102,7 +102,7 @@ class _Links1(BaseModel):
     property2: Property22
 
 
-class ExchangeItemmsInMailboxesResponse(BaseModel):
+class ExchangeItemsInMailboxesResponse(BaseModel):
     offset: int
     limit: int
     setId: str

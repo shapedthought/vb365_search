@@ -24,6 +24,16 @@ dependencies = [
     "toml",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "black",
+    "isort",
+    "mypy",
+]
+
 [project.urls]
 "Homepage" = "https://github.com/yourusername/vb365_search"
 "Bug Tracker" = "https://github.com/yourusername/vb365_search/issues"

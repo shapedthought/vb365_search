@@ -50,8 +50,8 @@ version = "v8"
 #### Veeam Backup for Microsoft 365 Section
 
 - `api_address`: The address of the Veeam Backup for Microsoft 365 server
-- `username`: The username for the Veeam Backup for Microsoft 365 server (optional)
-- `password`: The password for the Veeam Backup for Microsoft 365 server (optional)
+- `username`: The username for the Veeam Backup for Microsoft 365 server (optional) - only required when Tenant Authentication is added
+- `password`: The password for the Veeam Backup for Microsoft 365 server (optional) - only required when Tenant Authentication is added
 - `version`: The API version to use (default: "v8")
 
 ## Usage
@@ -91,62 +91,74 @@ This will stop the restore session.
 
 ```python
 from vb365_search.authentication.modern_auth import AuthenticateModern
-from vb365_search import ExchangeSearch
-from vb365_search.config import load_config, auth_from_config
-from vb365_search.utils.helpers import load_json, save_json, headers_from_veeam_token_response, auth_from_config
-from vb365_search.restore_session.restore_models import RestoreSessionRequest, RestoreSessionResponse, RestoreSession
 from vb365_search.search.exchange import ExchangeItemsInMailboxesSearch
+from vb365_search.config import load_config
+from vb365_search.utils.helpers import save_json, auth_from_config, headers_from_veeam_token_response
+from vb365_search.restore_session.restore_models import RestoreSessionRequest, RestoreSessionResponse
+from vb365_search.restore_session.restore_session import RestoreSession
 
 # Load configuration
 config = load_config("configuration.toml")
 
-# Create Authentication object
+# Create Authentication config from configuration
 auth_config = auth_from_config(config)
 
-# Authenticate using modern auth, returns a VeeamTokenResponse
+# Authenticate using modern auth
 auth_modern = AuthenticateModern(auth_config)
 
 try:
-    veeam_token_response = auth_modern.authenticate_veeam_backup_o365()
+    veeam_token_model = auth_modern.authenticate_veeam_backup_o365(verify=False)
 except Exception as e:
     print(f"Login failed: {e}")
     raise
 
 # Create authentication headers from the VeeamTokenResponse
-auth_headers = headers_from_veeam_token_response(veeam_token_response)
+auth_headers = headers_from_veeam_token_response(veeam_token_model)
 
-# Create authentication headers from the VeeamTokenResponse
+# Save authentication response and headers for later use
+save_json(veeam_token_model.model_dump(), "auth_response.json")
+save_json(auth_headers.model_dump(), "auth_headers.json")
+
+# Create restore session request
 # Defaults to date_time: None, show_all_versions: True, show_deleted: True, type_restore: Vex
-# Note that each restore session is locked to a specific type
-restore_session_request = RestoreSessionRequest()
+# Note each restore session is locked to specific restore type
+restore_request = RestoreSessionRequest()
 
-# Create restore session object, having this independent allows for multiple sessions to be created
-restore_session = RestoreSession(
-    config=config,
-    auth_headers=auth_headers
-)
+# Create restore session
+restore_session = RestoreSession(auth_config, auth_headers)
 
-# Then create the restore session
-restore_session_response = restore_session.create_restore_session(
-    restore_session_request=restore_session_request,
-    verify=False
-)
+try:
+    restore_response = restore_session.create_restore_session(restore_request, verify=False)
+    save_json(restore_response.model_dump(), "restore.json")
+    print(f"Restore session created with ID: {restore_response.id}")
+except Exception as e:
+    print(f"Failed to create restore session: {e}")
+    raise
 
-# Then create the Exchange Items Mailboxes Search object
+# Create search object
 search = ExchangeItemsInMailboxesSearch(
-    config=config,
-    auth_headers=auth_headers,
-    restore_session_id=restore_session_response.id
+    config,
+    auth_headers,
+    restore_response.id
 )
 
 # Execute search
-results = search.search("subject: Test", limit=100)
+search_response = search.search("subject: Test", limit=100)
+
+# Get standardized results
+results = search.get_results()
 
 # Print results
-pprint(results)
+for result in results:
+    print(f"Subject: {result['subject']}")
+    print(f"From: {result['from']}")
+    print(f"To: {result['to']}")
+    print(f"Received: {result['received']}")
+    print("")
 
 # Save results to file
-save_json(results.model_dump())
+output_path = search.save_results()
+print(f"Results saved to {output_path}")
 ```
 
 ## Search Query Syntax
@@ -203,8 +215,17 @@ vb365_search/
 
 ### Running Tests
 
+The project uses pytest and pytest-mock for testing:
+
 ```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
 pytest
+
+# Run tests with coverage
+pytest --cov=vb365_search
 ```
 
 ## License
