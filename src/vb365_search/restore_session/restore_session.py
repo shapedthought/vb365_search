@@ -9,7 +9,7 @@ class RestoreSession:
         self.auth_headers = auth_headers
         self.restore_session_url = f"https://{self.config.veeam_api_url}/RestoreSessions"
 
-    def create_restore_session(self, restore_session_request: RestoreSessionRequest, verify: bool = False) -> RestoreSessionResponse:
+    def create_restore_session(self, restore_session_request: RestoreSessionRequest, verify: bool = True) -> RestoreSessionResponse:
         """
         Create a restore session
         """
