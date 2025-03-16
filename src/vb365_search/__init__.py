@@ -13,3 +13,14 @@ from .search import (
     SharePointSearch,
     OneDriveSearch,
 )
+
+__all__ = [
+    "AuthenticateModern",
+    "AuthConfig",
+    "AuthHeaders",
+    "Configuration",
+    "BaseSearch",
+    "ExchangeItemsInMailboxesSearch",
+    "SharePointSearch",
+    "OneDriveSearch",
+]

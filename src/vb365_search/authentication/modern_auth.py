@@ -10,6 +10,7 @@ class AuthenticateModern:
         self.config = config
         self.device_code_url = f"https://login.microsoftonline.com/{self.config.tenant_name}/oauth2/v2.0/devicecode"
         self.token_url = f"https://login.microsoftonline.com/{self.config.tenant_name}/oauth2/v2.0/token"
+        self.antiforgery_token = None
 
     def authenticate_veeam_backup_o365(self, verify: bool = False) -> VeeamTokenResponse:
         """
@@ -62,17 +63,24 @@ class AuthenticateModern:
             raise ValueError("Failed to obtain access token from Microsoft Identity platform")
               
         # Step 4: Log in to Veeam Backup for Microsoft 365 REST API
-        veeam_token_url = f"{self.config.veeam_api_url}/v8/token"
-        veeam_token_data = {
+        veeam_token_url = f"{self.config.veeam_api_url}/token"
+        veeam_token_data: dict[str, str | bool] = {
             "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
             "client_id": self.config.tenant_name,
-            "assertion": json.dumps(token_json)
+            "assertion": json.dumps(token_json),
+            "disable_antiforgery_token": True
         }
         
         veeam_response = requests.post(veeam_token_url, data=veeam_token_data, verify=verify)
         veeam_response.raise_for_status()
         veeam_tokens = veeam_response.json()
         
-        self.veeam_token_response = VeeamTokenResponse.model_validate(veeam_tokens)
+        
+        self.veeam_token_response = VeeamTokenResponse(
+            access_token=veeam_tokens['access_token'],
+            refresh_token=veeam_tokens['refresh_token'],
+            expires_in=veeam_tokens['expires_in'],
+            token_type=veeam_tokens['token_type'],
+        )
         
         return self.veeam_token_response

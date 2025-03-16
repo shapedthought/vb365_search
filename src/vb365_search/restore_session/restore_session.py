@@ -7,7 +7,7 @@ class RestoreSession:
     def __init__(self, config: AuthConfig, auth_headers: AuthHeaders):
         self.config = config
         self.auth_headers = auth_headers
-        self.restore_session_url = f"https://{self.config.veeam_api_url}/RestoreSessions"
+        self.restore_session_url = f"{self.config.veeam_api_url}/Organization/Explore"
 
     def create_restore_session(self, restore_session_request: RestoreSessionRequest, verify: bool = True) -> RestoreSessionResponse:
         """
@@ -16,7 +16,7 @@ class RestoreSession:
         try:
             restore_response = requests.post(
                 self.restore_session_url,
-                json=restore_session_request.model_dump(),
+                json=restore_session_request.model_dump(by_alias=True),
                 headers=self.auth_headers.model_dump(),
                 verify=verify,
             )

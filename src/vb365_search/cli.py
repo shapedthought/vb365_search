@@ -5,14 +5,16 @@ Command-line interface for vb365_search
 import logging
 from typing import Optional
 
-import fire
+import fire # type: ignore
+
+from vb365_search.search.models import ExchangeItemsInMailboxesResponse, OneDriveSearchResponse, SharePointSearchResponse
 
 from .config import load_config, create_config_template, get_config_path
 from .authentication.modern_auth import AuthenticateModern
 from .authentication.auth_models import AuthHeaders
 from .restore_session.restore_models import RestoreSessionRequest, RestoreSessionResponse
 from .restore_session.restore_session import RestoreSession
-from .search.exchange import ExchangeItemsInMailboxesSearch, ExchangeSearch
+from .search.exchange import ExchangeItemsInMailboxesSearch
 from .search.sharepoint import SharePointSearch
 from .search.onedrive import OneDriveSearch
 from .utils.helpers import save_json, load_json, auth_from_config
@@ -48,7 +50,7 @@ class CLI:
         """
         if config_path is None:
             try:
-                config_path = get_config_path()
+                config_path = str(get_config_path())
             except FileNotFoundError:
                 logger.error("Configuration file not found. Use 'template' to create one.")
                 return
@@ -68,7 +70,7 @@ class CLI:
             raise
         
         auth_headers = AuthHeaders(
-            authorization=f"{veeam_token_model.token_type} {veeam_token_model.access_token}"
+            Authorization=f"{veeam_token_model.token_type} {veeam_token_model.access_token}"
         )
         
         # Save authentication response and headers
@@ -94,7 +96,7 @@ class CLI:
         limit: int = 30,
         print_results: bool = False,
         config_path: Optional[str] = None,
-    ) -> None:
+    ) -> Optional[ExchangeItemsInMailboxesResponse | OneDriveSearchResponse | SharePointSearchResponse]:
         """
         Search Veeam Backup for Microsoft Office 365
         
@@ -116,7 +118,7 @@ class CLI:
         # Load configuration
         if config_path is None:
             try:
-                config_path = get_config_path()
+                config_path = str(get_config_path())
             except FileNotFoundError:
                 logger.error("Configuration file not found. Use 'template' to create one.")
                 return
@@ -126,20 +128,20 @@ class CLI:
         # Create search object based on search type
         if search_type.lower() == "exchange":
             search_obj = ExchangeItemsInMailboxesSearch(
-                config.model_dump(),
-                auth_headers_dict,
+                config,
+                AuthHeaders(**auth_headers_dict),
                 restore_model.id,
             )
         elif search_type.lower() == "sharepoint":
             search_obj = SharePointSearch(
-                config.model_dump(),
-                auth_headers_dict,
+                config,
+                AuthHeaders(**auth_headers_dict),
                 restore_model.id,
             )
         elif search_type.lower() == "onedrive":
             search_obj = OneDriveSearch(
-                config.model_dump(),
-                auth_headers_dict,
+                config,
+                AuthHeaders(**auth_headers_dict),
                 restore_model.id,
             )
         else:
@@ -179,7 +181,7 @@ class CLI:
         # Load configuration
         if config_path is None:
             try:
-                config_path = get_config_path()
+                config_path = str(get_config_path())
             except FileNotFoundError:
                 logger.error("Configuration file not found. Use 'template' to create one.")
                 return
@@ -194,6 +196,7 @@ class CLI:
         
         import requests
         
+        session = None
         try:
             session = requests.Session()
             logout_res = session.post(
@@ -204,14 +207,15 @@ class CLI:
         except requests.exceptions.RequestException as e:
             logger.error(f"Logout failed: {e}")
         finally:
-            session.close()
+            if session:
+                session.close()
 
 
 def main():
     """
     Main entry point for the CLI
     """
-    fire.Fire(CLI)
+    fire.Fire(CLI)  # type: ignore
 
 
 if __name__ == "__main__":

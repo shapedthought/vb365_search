@@ -39,7 +39,7 @@ class BaseSearch(ABC):
         self.last_search_term = None
     
     @abstractmethod
-    def search(self, term: str, limit: int = 30, **kwargs) -> Any:
+    def search(self, term: str, limit: int = 30, **kwargs: Any) -> Any:
         """
         Execute a search with the given term
         

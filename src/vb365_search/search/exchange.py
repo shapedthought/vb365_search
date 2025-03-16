@@ -38,7 +38,7 @@ class ExchangeItemsInMailboxesSearch(BaseSearch):
         if not self.api_address:
             raise ValueError("API address not found in configuration")
     
-    def search(self, term: str, limit: int = 30, **kwargs) -> ExchangeItemsInMailboxesResponse:
+    def search(self, term: str, limit: int = 30, **kwargs: Any) -> ExchangeItemsInMailboxesResponse:
         """
         Search Exchange mailboxes
         
@@ -65,7 +65,7 @@ class ExchangeItemsInMailboxesSearch(BaseSearch):
             response = requests.post(
                 search_url,
                 json=search_body.model_dump(),
-                headers=self.auth_headers,
+                headers=self.auth_headers.model_dump(),
                 verify=False,
             )
             response.raise_for_status()
@@ -92,8 +92,9 @@ class ExchangeItemsInMailboxesSearch(BaseSearch):
         
         search_response = ExchangeItemsInMailboxesResponse(**self.results)
         
+        standardized_results: List[Dict[str, Any]] = []
+        
         # Convert to a standardized format
-        standardized_results = []
         for result in search_response.results:
             standardized_results.append({
                 "subject": result.subject,

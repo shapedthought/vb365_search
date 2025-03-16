@@ -5,7 +5,9 @@ Helper functions for vb365_search
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Union
+
+from pydantic import HttpUrl
 
 from vb365_search.authentication.auth_models import AuthConfig, AuthHeaders, VeeamTokenResponse
 from vb365_search.models.models import Configuration
@@ -98,7 +100,7 @@ def auth_from_config(config: Configuration) -> AuthConfig:
     return AuthConfig(
         client_id=config.microsoft.application_id,
         tenant_name=config.microsoft.tenant_name,
-        veeam_api_url=f"https://{config.vb365.api_address}:4443/{config.vb365.version}"
+        veeam_api_url=HttpUrl(f"https://{config.vb365.api_address}:4443/{config.vb365.version}")
     )
     
 def headers_from_veeam_token_response(veeam_token_model: VeeamTokenResponse) -> AuthHeaders:
@@ -106,6 +108,6 @@ def headers_from_veeam_token_response(veeam_token_model: VeeamTokenResponse) -> 
     Create an AuthHeaders object from a VeeamTokenResponse object
     """
     auth_headers = AuthHeaders(
-            authorization=f"{veeam_token_model.token_type} {veeam_token_model.access_token}"
+            Authorization=f"{veeam_token_model.token_type} {veeam_token_model.access_token}"
         )
     return auth_headers

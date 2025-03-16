@@ -3,10 +3,14 @@ OneDrive search implementation for vb365_search
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
+from vb365_search.authentication.auth_models import AuthHeaders
+from vb365_search.models.models import Configuration
+
 
 from .base import BaseSearch
-from .models import OneDriveSearchRequest, OneDriveSearchResponse
+from .models import OneDriveSearchResponse
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +21,10 @@ class OneDriveSearch(BaseSearch):
     This class implements the search functionality for OneDrive files
     in Veeam Backup for Microsoft 365.
     
-    Note: This is a placeholder for future implementation.
+    def __init__(self, config: Dict[str, Any], auth_headers: 'AuthHeaders', restore_session_id: str):
     """
     
-    def __init__(self, config: Dict[str, Any], auth_headers: Dict[str, str], restore_session_id: str):
+    def __init__(self, config: Configuration, auth_headers: AuthHeaders, restore_session_id: str):
         """
         Initialize the OneDrive search
         
@@ -30,13 +34,13 @@ class OneDriveSearch(BaseSearch):
             restore_session_id: ID of the restore session
         """
         super().__init__(config, auth_headers, restore_session_id)
-        self.api_address = config.get("vb365", {}).get("api_address")
-        self.api_version = config.get("vb365", {}).get("version", "v8")
+        self.api_address = config.vb365.api_address
+        self.api_version = config.vb365.version
         
         if not self.api_address:
             raise ValueError("API address not found in configuration")
     
-    def search(self, term: str, limit: int = 30, **kwargs) -> OneDriveSearchResponse:
+    def search(self, term: str, limit: int = 30, **kwargs: Any) -> OneDriveSearchResponse:
         """
         Search OneDrive files
         
@@ -54,7 +58,7 @@ class OneDriveSearch(BaseSearch):
         logger.warning("OneDrive search is not yet implemented")
         
         # Return an empty response for now
-        self.results = {"results": []}
+        self.results: Dict[str, List[Any]] = {"results": []}
         return OneDriveSearchResponse(**self.results)
     
     def get_results(self) -> List[Dict[str, Any]]:

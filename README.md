@@ -94,7 +94,7 @@ from vb365_search.authentication.modern_auth import AuthenticateModern
 from vb365_search.search.exchange import ExchangeItemsInMailboxesSearch
 from vb365_search.config import load_config
 from vb365_search.utils.helpers import save_json, auth_from_config, headers_from_veeam_token_response
-from vb365_search.restore_session.restore_models import RestoreSessionRequest, RestoreSessionResponse
+from vb365_search.restore_session.restore_models import RestoreSessionRequest
 from vb365_search.restore_session.restore_session import RestoreSession
 
 # Load configuration

@@ -68,7 +68,7 @@ class AuthHeaders(BaseModel):
     authorization: str = Field(alias="Authorization")
 
     @field_validator("authorization")
-    def check_authorization(cls, value):
+    def check_authorization(cls, value: str):
         if not value.startswith("Bearer "):
             raise ValueError("Authorization must be a Bearer token")
 
