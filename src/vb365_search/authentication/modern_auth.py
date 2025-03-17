@@ -1,8 +1,21 @@
 import requests
 import json
 import time
+from enum import StrEnum
+from typing import List
 
 from .auth_models import DeviceCodeResponse, VeeamTokenResponse, AuthConfig
+
+
+class M365Permissions(StrEnum):
+    DIRECTORY_READ_ALL = "Directory.Read.All"
+    DIRECTORY_READ_WRITE_ALL = "Directory.ReadWrite.All"
+    DIRECTORY_ACCESS_AS_USER_ALL = "Directory.AccessAsUser.All"
+    USER_READ = "User.Read"
+    USER_READ_WRITE = "User.ReadWrite"
+    USER_READ_ALL = "User.Read.All"
+    USER_READ_WRITE_ALL = "User.ReadWrite.All"
+    OFFLINE_ACCESS = "offline_access"
 
 class AuthenticateModern:
     
@@ -10,16 +23,18 @@ class AuthenticateModern:
         self.config = config
         self.device_code_url = f"https://login.microsoftonline.com/{self.config.tenant_name}/oauth2/v2.0/devicecode"
         self.token_url = f"https://login.microsoftonline.com/{self.config.tenant_name}/oauth2/v2.0/token"
-        self.antiforgery_token = None
 
-    def authenticate_veeam_backup_o365(self, verify: bool = False) -> VeeamTokenResponse:
+    def authenticate_veeam_backup_m365(self, permissions: List[M365Permissions], verify: bool = False) -> VeeamTokenResponse:
         """
         Authenticate to Veeam Backup for Microsoft 365 using modern app-only authentication
         """
+        
+        permissions_str = AuthenticateModern.create_basic_permisions_str(permissions)
+        
         # Step 1: Obtain device code
         device_code_data = {
             "client_id": self.config.client_id,
-            "scope": "Directory.AccessAsUser.All User.ReadWrite.All offline_access"
+            "scope": permissions_str
         }
         
         device_code_response = requests.post(self.device_code_url, data=device_code_data)
@@ -84,3 +99,15 @@ class AuthenticateModern:
         )
         
         return self.veeam_token_response
+
+    @staticmethod
+    def create_basic_permisions_str(permissions: List[M365Permissions]) -> str:
+        return " ".join(permissions)
+
+    @staticmethod
+    def create_default_permissions() -> List[M365Permissions]:
+        return ([
+            M365Permissions.DIRECTORY_ACCESS_AS_USER_ALL,
+            M365Permissions.USER_READ_WRITE_ALL,
+            M365Permissions.OFFLINE_ACCESS
+        ])

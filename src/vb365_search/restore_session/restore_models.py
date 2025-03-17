@@ -1,20 +1,19 @@
-from typing import Optional
 from pydantic import BaseModel, Field
+from typing import Optional
 
 class RestoreSessionRequest(BaseModel):
-    date_time: Optional[str] = Field(alias="dateTime", default=None)
+    date_time: str = Field(alias="dateTime")
     show_all_versions: bool = Field(alias="showAllVersions", default=True)
     show_deleted: bool = Field(alias="showDeleted", default=True)
     type_restore: str = Field(alias="type", default="Vex")
 
-
-
-class Href(BaseModel):
+class Link(BaseModel):
     href: str
 
-class _Links(BaseModel):
-    property1: Href
-    property2: Href
+class Links(BaseModel):
+    self: Link
+    organization: Link
+    restoreSessionEvents: Link
 
 class RestoreSessionResponse(BaseModel):
     id: str
@@ -26,12 +25,9 @@ class RestoreSessionResponse(BaseModel):
     state: str
     result: str
     initiatedBy: str
-    details: str
-    scopeName: str
-    clientHost: str
-    reason: str
+    scopeName: Optional[str] = None
     eTag: int
-    _links: _Links
+    _links: Links
 
 
 class SearchRequest(BaseModel):

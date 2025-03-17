@@ -24,5 +24,7 @@ class RestoreSession:
         except requests.exceptions.RequestException as e:
             print(f"Restore session failed: {e}")
             raise
-
-        return RestoreSessionResponse(**restore_response.json())
+        
+        restore_json = restore_response.json()
+        print(restore_json)
+        return RestoreSessionResponse(**restore_json)

@@ -4,8 +4,9 @@ Helper functions for vb365_search
 
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, Optional
 
 from pydantic import HttpUrl
 
@@ -111,3 +112,22 @@ def headers_from_veeam_token_response(veeam_token_model: VeeamTokenResponse) -> 
             Authorization=f"{veeam_token_model.token_type} {veeam_token_model.access_token}"
         )
     return auth_headers
+
+def create_datetime(dt: Optional[datetime] = None) -> str:
+    """
+    Create a timestamp in ISO 8601 format
+    
+    Args:
+        dt: Optional datetime object to use for the timestamp. If not provided, the current time in UTC is used.
+        
+    Returns:
+        ISO 8601 formatted timestamp string
+    """
+    # Use the provided datetime object or get the current time in UTC
+    if dt is None:
+        dt = datetime.now(timezone.utc)
+
+    # Format as ISO 8601 string with Z suffix
+    iso_string = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    return iso_string
