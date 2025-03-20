@@ -1,4 +1,5 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
+
 
 class MicrosoftConfig(BaseModel):
     tenant_name: str = Field(default="")
@@ -62,15 +63,12 @@ class VBLoginResponse(BaseModel):
     expires: str = Field(alias=".expires")
 
 
-class AuthHeaders(BaseModel):
-    accept: str = Field(alias="Accept", default="application/json")
-    content_type: str = Field(alias="Content-Type", default="application/json")
-    authorization: str = Field(alias="Authorization")
+# class AuthHeaders(BaseModel):
+#     accept: str = Field(alias="Accept", default="application/json")
+#     content_type: str = Field(alias="Content-Type", default="application/json")
+#     authorization: str = Field(alias="Authorization")
 
-    @field_validator("authorization")
-    def check_authorization(cls, value: str):
-        if not value.startswith("Bearer "):
-            raise ValueError("Authorization must be a Bearer token")
-
-
-
+#     @field_validator("authorization")
+#     def check_authorization(cls, value: str):
+#         if not value.startswith("Bearer "):
+#             raise ValueError("Authorization must be a Bearer token")

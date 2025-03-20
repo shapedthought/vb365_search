@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 # Exchange search models
 
+
 class Attachment(BaseModel):
     name: str
     sizeBytes: int
@@ -112,10 +113,12 @@ class ExchangeItemsInMailboxesResponse(BaseModel):
 
 # Search request models
 
+
 class SearchRequest(BaseModel):
     """
     Base search request model
     """
+
     term: str
 
 
@@ -123,15 +126,18 @@ class ExchangeItemsInMailboxes(SearchRequest):
     """
     Exchange-specific search request
     """
+
     pass
 
 
 # SharePoint search models (placeholder for future implementation)
 
+
 class SharePointSearchRequest(SearchRequest):
     """
     SharePoint-specific search request
     """
+
     pass
 
 
@@ -139,15 +145,18 @@ class SharePointSearchResponse(BaseModel):
     """
     SharePoint search response (placeholder)
     """
+
     pass
 
 
 # OneDrive search models (placeholder for future implementation)
 
+
 class OneDriveSearchRequest(SearchRequest):
     """
     OneDrive-specific search request
     """
+
     pass
 
 
@@ -155,4 +164,5 @@ class OneDriveSearchResponse(BaseModel):
     """
     OneDrive search response (placeholder)
     """
+
     pass

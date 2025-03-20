@@ -32,11 +32,7 @@ def exchange_search(mock_config, auth_headers, restore_session_id):
     """
     Fixture for ExchangeItemsInMailboxesSearch instance
     """
-    return ExchangeItemsInMailboxesSearch(
-        mock_config,
-        auth_headers,
-        restore_session_id
-    )
+    return ExchangeItemsInMailboxesSearch(mock_config, auth_headers, restore_session_id)
 
 
 @pytest.fixture
@@ -63,11 +59,11 @@ def mock_search_response():
                 "itemClass": "test-item-class",
                 "_links": {
                     "property1": {"href": "test-href-1"},
-                    "property2": {"href": "test-href-2"}
+                    "property2": {"href": "test-href-2"},
                 },
                 "_actions": {
                     "property1": {"uri": "test-uri-1", "method": "GET"},
-                    "property2": {"uri": "test-uri-2", "method": "POST"}
+                    "property2": {"uri": "test-uri-2", "method": "POST"},
                 },
                 "id": "test-id",
                 "name": "test-name",
@@ -100,13 +96,13 @@ def mock_search_response():
                 "percentComplete": 0,
                 "startDate": "2023-01-01",
                 "dueDate": "2023-01-02",
-                "owner": "test-owner"
+                "owner": "test-owner",
             }
         ],
         "_links": {
             "property1": {"href": "test-href-1"},
-            "property2": {"href": "test-href-2"}
-        }
+            "property2": {"href": "test-href-2"},
+        },
     }
 
 
@@ -117,23 +113,26 @@ def test_search(exchange_search, mock_search_response, mocker):
     # Mock the requests.post method
     mock_response = mocker.Mock()
     mock_response.json.return_value = mock_search_response
-    
+
     mock_post = mocker.patch("requests.post", return_value=mock_response)
-    
+
     # Call the method
     result = exchange_search.search("test query")
-    
+
     # Verify the result
     assert isinstance(result, ExchangeItemsInMailboxesResponse)
     assert len(result.results) == 1
     assert result.results[0].subject == "Test Subject"
     assert result.results[0].from_ == "sender@example.com"
     assert result.results[0].to == "recipient@example.com"
-    
+
     # Verify the API call
     mock_post.assert_called_once()
     args, kwargs = mock_post.call_args
-    assert args[0] == "https://test-server:4443/v8/RestoreSessions/test-session-id/organization/mailboxes/search?limit=30"
+    assert (
+        args[0]
+        == "https://test-server:4443/v8/RestoreSessions/test-session-id/organization/mailboxes/search?limit=30"
+    )
     assert kwargs["headers"] == exchange_search.auth_headers
     assert kwargs["verify"] is False
 
@@ -156,9 +155,7 @@ def test_get_results(exchange_search):
                 "cc": "cc@example.com",
                 "bcc": "bcc@example.com",
                 "importance": "Normal",
-                "attachments": [
-                    {"name": "test.txt", "sizeBytes": 1024}
-                ],
+                "attachments": [{"name": "test.txt", "sizeBytes": 1024}],
                 "id": "test-id",
                 # Add other required fields
                 "mailboxId": "test-mailbox-id",
@@ -172,11 +169,11 @@ def test_get_results(exchange_search):
                 "itemClass": "test-item-class",
                 "_links": {
                     "property1": {"href": "test-href-1"},
-                    "property2": {"href": "test-href-2"}
+                    "property2": {"href": "test-href-2"},
                 },
                 "_actions": {
                     "property1": {"uri": "test-uri-1", "method": "GET"},
-                    "property2": {"uri": "test-uri-2", "method": "POST"}
+                    "property2": {"uri": "test-uri-2", "method": "POST"},
                 },
                 "name": "test-name",
                 "address": "test-address",
@@ -202,18 +199,18 @@ def test_get_results(exchange_search):
                 "percentComplete": 0,
                 "startDate": "2023-01-01",
                 "dueDate": "2023-01-02",
-                "owner": "test-owner"
+                "owner": "test-owner",
             }
         ],
         "_links": {
             "property1": {"href": "test-href-1"},
-            "property2": {"href": "test-href-2"}
-        }
+            "property2": {"href": "test-href-2"},
+        },
     }
-    
+
     # Call the method
     results = exchange_search.get_results()
-    
+
     # Verify the results
     assert len(results) == 1
     assert results[0]["subject"] == "Test Subject"
