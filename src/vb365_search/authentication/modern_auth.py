@@ -1,11 +1,12 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl
 import requests
 import json
 import time
 from typing import List, Dict, Any, Optional
 from requests.exceptions import RequestException
 
-from vb365_search.authentication.auth_models import AuthHeaders
+from vb365_search.authentication.auth_models import AuthHeaders, StandardAuthHeaders
+from vb365_search.models.models import Configuration
 
 from .auth_models import (
     DeviceCodeRequestData,
@@ -15,15 +16,25 @@ from .auth_models import (
     VeeamTokenData,
     VeeamTokenResponse,
     AuthConfig,
+    VeeamPassWordRequest
 )
 
 
 class AuthenticateModern:
-    def __init__(self, config: AuthConfig, verify: bool = True):
+    def __init__(self, config: Configuration, verify: bool = True):
+        
+        self.auth_config = AuthConfig(
+            tenant_name=config.microsoft.tenant_name,
+            client_id=config.microsoft.application_id,
+            veeam_api_url=HttpUrl(
+            f"https://{config.vb365.api_address}:4443/{config.vb365.version}"
+        ),
+        )
         self.config = config
         self.verify = verify
-        self.device_code_url = f"https://login.microsoftonline.com/{self.config.tenant_name}/oauth2/v2.0/devicecode"
-        self.token_url = f"https://login.microsoftonline.com/{self.config.tenant_name}/oauth2/v2.0/token"
+        self.device_code_url = f"https://login.microsoftonline.com/{self.auth_config.tenant_name}/oauth2/v2.0/devicecode"
+        self.token_url = f"https://login.microsoftonline.com/{self.auth_config.tenant_name}/oauth2/v2.0/token"
+        self.veeam_token_url = f"{self.auth_config.veeam_api_url}/Token"
         self.default_timeout = 30  # Default timeout for requests in seconds
 
     def _make_request(
@@ -49,7 +60,7 @@ class AuthenticateModern:
     def _get_device_code(self, permissions_str: str) -> DeviceCodeResponse:
         """Get device code from Microsoft Identity platform"""
         device_code_data = DeviceCodeRequestData(
-            client_id=self.config.client_id,
+            client_id=self.auth_config.client_id,
             scope=permissions_str,
         )
 
@@ -60,7 +71,7 @@ class AuthenticateModern:
         """Poll for token after user authentication"""
         token_data = TokenRequestData(
             grant_type="urn:ietf:params:oauth:grant-type:device_code",
-            client_id=self.config.client_id,
+            client_id=self.auth_config.client_id,
             device_code=device_code.device_code,
         )
 
@@ -88,22 +99,60 @@ class AuthenticateModern:
 
     def _get_veeam_token(self, token_json: Dict[str, Any]) -> VeeamTokenResponse:
         """Get Veeam token using the Microsoft token assertion"""
-        veeam_token_url = f"{self.config.veeam_api_url}/token"
+       
         veeam_token_data = VeeamTokenData(
             grant_type="urn:ietf:params:oauth:grant-type:jwt-bearer",
-            client_id=self.config.tenant_name,
+            client_id=self.auth_config.tenant_name,
             assertion=json.dumps(token_json),
             disable_antiforgery_token=True,
         )
 
-        veeam_tokens = self._make_request(veeam_token_url, veeam_token_data)
-
+        veeam_tokens = self._make_request(self.veeam_token_url, veeam_token_data)
+        
         return VeeamTokenResponse(
             access_token=veeam_tokens["access_token"],
             refresh_token=veeam_tokens["refresh_token"],
             expires_in=veeam_tokens["expires_in"],
             token_type=veeam_tokens["token_type"],
         )
+        
+    def get_standard_token_headers(self, save: Optional[str]) -> AuthHeaders:
+        """
+        Get standard token headers for Veeam Backup for Microsoft 365 API calls.
+        
+        This allows for standard non-restore operations to be performed.
+        
+        Args:
+            save: Optional path to save the authentication headers as JSON.
+                  If provided, headers will be saved to this file.
+        
+        Returns:
+            AuthHeaders object containing the formatted authorization header
+            
+        Raises:
+            ValueError: If authentication fails or if file_name
+        
+        """
+        
+        veeam_standard_token = VeeamPassWordRequest(
+            grant_type="password",
+            username=self.config.vb365.username,
+            password=self.config.vb365.password
+        )
+        
+        veeam_standard_token = self._make_request(self.veeam_token_url, veeam_standard_token)
+        
+        self.standard_token = VeeamTokenResponse(**veeam_standard_token)
+        
+        self.standard_headers = StandardAuthHeaders(
+            Authorization=f"{self.standard_token.token_type} {self.standard_token.access_token}"
+        )
+        
+        if save:
+            with open(save, "w") as file:
+                json.dump(self.standard_headers.model_dump(), file)
+        
+        return self.standard_headers
 
     def authenticate(
         self, permissions: Optional[List[M365Permissions]] = None
@@ -241,7 +290,7 @@ class AuthenticateModern:
         return AuthHeaders(**auth_headers)
 
     @staticmethod
-    def verify_required_permissions(permissions: List[M365Permissions]) -> None:
+    def verify_required_permissions(permissions: List[M365Permissions]) -> bool:
         """
         Verify that the permissions list contains exactly one user permission,
         one directory permission, one offline access permission, and a total of three permissions.
@@ -285,3 +334,5 @@ class AuthenticateModern:
             raise ValueError(
                 f"Permission validation failed:\n{error_message}\n\nRequired permissions must include exactly one Directory permission, one User permission, and the {M365Permissions.OFFLINE_ACCESS} permission."
             )
+            
+        return True

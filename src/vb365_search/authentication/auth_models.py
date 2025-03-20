@@ -63,6 +63,14 @@ class AuthHeaders(BaseModel):
     content_type: str = Field(alias="Content-Type", default="application/json", description="Request body format")
     authorization: str = Field(alias="Authorization", description="Authorization header containing the token")
 
+class StandardAuthHeaders(AuthHeaders):
+    """
+    Standard HTTP Authentication headers.
+    
+    Used to authenticate API requests after a successful OAuth flow.
+    """
+    pass
+    
 
 class M365Permissions(StrEnum):
     """
@@ -111,3 +119,13 @@ class VeeamTokenData(BaseModel):
     client_id: str = Field(description="Application identifier")
     assertion: str = Field(description="Token assertion or JWT")
     disable_antiforgery_token: bool = Field(description="Whether to disable anti-forgery token validation")
+
+class VeeamPassWordRequest(BaseModel):
+    """
+    Request model for obtaining Veeam-specific tokens.
+    
+    Contains the parameters needed for token requests to Veeam's authentication system.
+    """
+    grant_type: str = Field(description="Type of grant")
+    username: str = Field(description="username")
+    password: str = Field(description="password")
