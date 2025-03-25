@@ -121,3 +121,4 @@ restore.json
 search-*.json
 configuration.toml
 auth.json
+*.json

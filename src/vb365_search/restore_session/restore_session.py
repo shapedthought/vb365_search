@@ -15,9 +15,9 @@ T = TypeVar("T")
 
 class RestoreSession:
     def __init__(
-        self, config: AuthConfig, auth_headers: AuthHeaders, verify: bool = True
+        self, auth_config: AuthConfig, auth_headers: AuthHeaders, verify: bool = True
     ):
-        self.config = config
+        self.config = auth_config
         self.auth_headers = auth_headers
         self.verify = verify
         self.explore_session_url = f"{self.config.veeam_api_url}/Organization/Explore"

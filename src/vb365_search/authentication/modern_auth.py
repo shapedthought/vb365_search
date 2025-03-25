@@ -1,9 +1,11 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 import requests
 import json
 import time
 from typing import List, Dict, Any, Optional
 from requests.exceptions import RequestException
+import pyperclip
+import webbrowser
 
 from vb365_search.authentication.auth_models import AuthHeaders, StandardAuthHeaders
 from vb365_search.models.models import Configuration
@@ -16,20 +18,15 @@ from .auth_models import (
     VeeamTokenData,
     VeeamTokenResponse,
     AuthConfig,
-    VeeamPassWordRequest
+    VeeamPassWordRequest,
 )
 
 
 class AuthenticateModern:
-    def __init__(self, config: Configuration, verify: bool = True):
-        
-        self.auth_config = AuthConfig(
-            tenant_name=config.microsoft.tenant_name,
-            client_id=config.microsoft.application_id,
-            veeam_api_url=HttpUrl(
-            f"https://{config.vb365.api_address}:4443/{config.vb365.version}"
-        ),
-        )
+    def __init__(
+        self, auth_config: AuthConfig, config: Configuration, verify: bool = True
+    ):
+        self.auth_config = auth_config
         self.config = config
         self.verify = verify
         self.device_code_url = f"https://login.microsoftonline.com/{self.auth_config.tenant_name}/oauth2/v2.0/devicecode"
@@ -99,7 +96,7 @@ class AuthenticateModern:
 
     def _get_veeam_token(self, token_json: Dict[str, Any]) -> VeeamTokenResponse:
         """Get Veeam token using the Microsoft token assertion"""
-       
+
         veeam_token_data = VeeamTokenData(
             grant_type="urn:ietf:params:oauth:grant-type:jwt-bearer",
             client_id=self.auth_config.tenant_name,
@@ -108,54 +105,57 @@ class AuthenticateModern:
         )
 
         veeam_tokens = self._make_request(self.veeam_token_url, veeam_token_data)
-        
+
         return VeeamTokenResponse(
             access_token=veeam_tokens["access_token"],
             refresh_token=veeam_tokens["refresh_token"],
             expires_in=veeam_tokens["expires_in"],
             token_type=veeam_tokens["token_type"],
         )
-        
+
     def get_standard_token_headers(self, save: Optional[str]) -> AuthHeaders:
         """
         Get standard token headers for Veeam Backup for Microsoft 365 API calls.
-        
+
         This allows for standard non-restore operations to be performed.
-        
+
         Args:
             save: Optional path to save the authentication headers as JSON.
                   If provided, headers will be saved to this file.
-        
+
         Returns:
             AuthHeaders object containing the formatted authorization header
-            
+
         Raises:
             ValueError: If authentication fails or if file_name
-        
+
         """
-        
+
         veeam_standard_token = VeeamPassWordRequest(
             grant_type="password",
             username=self.config.vb365.username,
-            password=self.config.vb365.password
+            password=self.config.vb365.password,
         )
-        
-        veeam_standard_token = self._make_request(self.veeam_token_url, veeam_standard_token)
-        
+
+        veeam_standard_token = self._make_request(
+            self.veeam_token_url, veeam_standard_token
+        )
+
         self.standard_token = VeeamTokenResponse(**veeam_standard_token)
-        
+
         self.standard_headers = StandardAuthHeaders(
             Authorization=f"{self.standard_token.token_type} {self.standard_token.access_token}"
         )
-        
+
         if save:
             with open(save, "w") as file:
                 json.dump(self.standard_headers.model_dump(), file)
-        
+
         return self.standard_headers
 
     def authenticate(
-        self, permissions: Optional[List[M365Permissions]] = None
+        self,
+        permissions: Optional[List[M365Permissions]] = None,
     ) -> VeeamTokenResponse:
         """
         Authenticate to Veeam Backup for Microsoft 365 using modern app-only authentication.
@@ -176,14 +176,17 @@ class AuthenticateModern:
             ValueError: If authentication fails or times out
         """
         if permissions is None:
-            permissions = AuthenticateModern.create_default_permissions()
+            permissions = AuthenticateModern.create_default_tenant_permissions()
 
-        AuthenticateModern.verify_required_permissions(permissions)
+        # AuthenticateModern.verify_required_permissions(permissions)
 
         permissions_str = AuthenticateModern.create_default_permissions_str(permissions)
 
         # Step 1: Obtain device code
         device_code = self._get_device_code(permissions_str)
+        pyperclip.copy(str(device_code.user_code))
+        webbrowser.open(str(device_code.verification_uri))
+
         print(f"Please visit: {device_code.verification_uri}")
         print(f"Enter the code: {device_code.user_code}")
 
@@ -229,17 +232,83 @@ class AuthenticateModern:
         """
 
         veeam_token_model = self.authenticate(permissions)
-        auth_headers = AuthHeaders(
+        self.auth_headers = AuthHeaders(
             Authorization=f"{veeam_token_model.token_type} {veeam_token_model.access_token}"
         )
 
         if file_name:
+            if ".json" not in file_name:
+                file_name = f"{file_name}.json"
             with open(file_name, "w") as file:
-                json.dump(auth_headers.model_dump(), file)
+                json.dump(self.auth_headers.model_dump(by_alias=True), file)
         else:
             raise ValueError("File path required to save headers")
 
-        return auth_headers
+        return self.auth_headers
+
+    def authenticate_standard(
+        self, file_name: Optional[str] = None
+    ) -> StandardAuthHeaders:
+        """
+        Authenticate to Veeam Backup for Microsoft 365 using standard OAuth password authentication.
+
+        This method uses the provided username and password to authenticate to the Veeam API
+
+        Args:
+            file_name: Optional path to save the authentication headers as JSON.
+                       If provided, headers will be saved to this file.
+
+        Returns:
+            StandardAuthHeaders object containing the formatted authorization header
+
+        Raises:
+            ValueError: If authentication fails or if file_name is None
+            IOError: If there's an error writing to the specified file
+        """
+
+        veeam_standard_token = VeeamPassWordRequest(
+            grant_type="password",
+            username=self.config.vb365.username,
+            password=self.config.vb365.password,
+        )
+
+        veeam_standard_token = self._make_request(
+            self.veeam_token_url, veeam_standard_token
+        )
+
+        self.standard_token = VeeamTokenResponse(**veeam_standard_token)
+
+        self.standard_headers = StandardAuthHeaders(
+            Authorization=f"{self.standard_token.token_type} {self.standard_token.access_token}"
+        )
+
+        if file_name:
+            if ".json" not in file_name:
+                file_name = f"{file_name}.json"
+            with open(file_name, "w") as file:
+                json.dump(self.standard_headers.model_dump(by_alias=True), file)
+
+        return self.standard_headers
+
+    def get_user_id(self, verify: bool = True) -> str:
+        """
+        Get the user ID associated with the authenticated account.
+
+        Returns:
+            User ID string
+
+        Raises:
+            ValueError: If the request fails or if the user ID is not found
+        """
+
+        id_url = "https://graph.microsoft.com/v1.0/me?$select=id"
+        headers = self.auth_headers.model_dump()
+        response = requests.get(id_url, headers=headers, verify=verify)
+
+        if response.status_code == 200:
+            return response.json()["id"]
+
+        raise ValueError("Failed to retrieve user ID")
 
     @staticmethod
     def create_default_permissions_str(permissions: List[M365Permissions]) -> str:
@@ -255,7 +324,7 @@ class AuthenticateModern:
         return " ".join(permissions)
 
     @staticmethod
-    def create_default_permissions() -> List[M365Permissions]:
+    def create_default_tenant_permissions() -> List[M365Permissions]:
         """
         Creates the default list of Microsoft 365 permissions required for Veeam Backup authentication.
 
@@ -290,49 +359,69 @@ class AuthenticateModern:
         return AuthHeaders(**auth_headers)
 
     @staticmethod
-    def verify_required_permissions(permissions: List[M365Permissions]) -> bool:
+    def standard_auth_headers_from_file(file_path: str) -> StandardAuthHeaders:
         """
-        Verify that the permissions list contains exactly one user permission,
-        one directory permission, one offline access permission, and a total of three permissions.
+        Loads standard authentication headers from a saved JSON file.
 
         Args:
-            permissions: List of M365Permissions to check
+            file_path: Path to the JSON file containing authentication headers
+
+        Returns:
+            StandardAuthHeaders object with loaded authentication information
 
         Raises:
-            ValueError: If the required permissions are missing or if there are extra permissions
+            FileNotFoundError: If the specified file path does not exist
+            JSONDecodeError: If the file contains invalid JSON
         """
-        # Count types of permissions
-        directory_permissions = [p for p in permissions if p.startswith("Directory.")]
-        user_permissions = [p for p in permissions if p.startswith("User.")]
-        offline_access = [p for p in permissions if p == M365Permissions.OFFLINE_ACCESS]
+        with open(file_path, "r") as file:
+            auth_headers = json.load(file)
 
-        # Check counts
-        errors: List[str] = []
+        return StandardAuthHeaders(**auth_headers)
 
-        if len(directory_permissions) != 1:
-            errors.append(
-                f"Expected exactly one Directory permission, found {len(directory_permissions)}"
-            )
+    # @staticmethod
+    # def verify_required_permissions(permissions: List[M365Permissions]) -> bool:
+    #     """
+    #     Verify that the permissions list contains exactly one user permission,
+    #     one directory permission, one offline access permission, and a total of three permissions.
 
-        if len(user_permissions) != 1:
-            errors.append(
-                f"Expected exactly one User permission, found {len(user_permissions)}"
-            )
+    #     Args:
+    #         permissions: List of M365Permissions to check
 
-        if len(offline_access) != 1:
-            errors.append(
-                f"Expected exactly one {M365Permissions.OFFLINE_ACCESS} permission, found {len(offline_access)}"
-            )
+    #     Raises:
+    #         ValueError: If the required permissions are missing or if there are extra permissions
+    #     """
+    #     # Count types of permissions
+    #     directory_permissions = [p for p in permissions if p.startswith("Directory.")]
+    #     user_permissions = [p for p in permissions if p.startswith("User.")]
+    #     offline_access = [p for p in permissions if p == M365Permissions.OFFLINE_ACCESS]
 
-        if len(permissions) != 3:
-            errors.append(
-                f"Expected exactly 3 total permissions, found {len(permissions)}"
-            )
+    #     # Check counts
+    #     errors: List[str] = []
 
-        if errors:
-            error_message = "\n".join(errors)
-            raise ValueError(
-                f"Permission validation failed:\n{error_message}\n\nRequired permissions must include exactly one Directory permission, one User permission, and the {M365Permissions.OFFLINE_ACCESS} permission."
-            )
-            
-        return True
+    #     if len(directory_permissions) != 1:
+    #         errors.append(
+    #             f"Expected exactly one Directory permission, found {len(directory_permissions)}"
+    #         )
+
+    #     if len(user_permissions) != 1:
+    #         errors.append(
+    #             f"Expected exactly one User permission, found {len(user_permissions)}"
+    #         )
+
+    #     if len(offline_access) != 1:
+    #         errors.append(
+    #             f"Expected exactly one {M365Permissions.OFFLINE_ACCESS} permission, found {len(offline_access)}"
+    #         )
+
+    #     if len(permissions) != 3:
+    #         errors.append(
+    #             f"Expected exactly 3 total permissions, found {len(permissions)}"
+    #         )
+
+    #     if errors:
+    #         error_message = "\n".join(errors)
+    #         raise ValueError(
+    #             f"Permission validation failed:\n{error_message}\n\nRequired permissions must include exactly one Directory permission, one User permission, and the {M365Permissions.OFFLINE_ACCESS} permission."
+    #         )
+
+    #     return True

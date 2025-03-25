@@ -4,6 +4,7 @@ from typing import Any, List
 
 from pydantic import BaseModel
 
+
 class Data(BaseModel):
     platformName: str
     type: str
@@ -28,5 +29,3 @@ class Pagination(BaseModel):
 class RestorePointResponse(BaseModel):
     data: List[Data]
     pagination: Pagination
-    
-
